@@ -58,7 +58,7 @@ chrome.omnibox.onInputEntered.addListener(function(text) {
 	}
 	
 	var commands = commandText.split('.');
-	var params = paramText.split('/');
+	var params = paramText.split('`');
 	
 	var commandStrings = [];
 	for (var command in commands) {			// convert commands into command strings
