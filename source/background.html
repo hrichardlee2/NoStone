@@ -1,80 +1,101 @@
 <script>
 
+function resolveCommand(command) {
+	if (command == "") return [""]; // if the command is blank, it's going to be blank ("" signifies open a blank tab)
+	
+	var commandString = localStorage[command]; // see if we have the command cached/overrided
+	if (commandString == null) return [resolveExternalCommand(command)]; // if we don't have the command, go get it from yubnub
+	
+	if (commandString.substr(0, 7) != 'http://') { //if it's not a url, it's a conglomerate command. this will only happen with locally defined commands
+		var subCommands = commandString.split('.');
+		var subCommandStrings = []
+		for (var i in subCommands) {
+			subCommand = subCommands[i];
+			subCommandStrings = subCommandStrings.concat(resolveCommand(subCommand));
+		}
+		return subCommandStrings;
+	} else {
+		return [commandString];
+	}
+}
+
+function resolveExternalCommand(command) {
+	//do it synchronously for now. oh well
+	var xhr = new XMLHttpRequest();
+	xhr.open('GET',
+		'http://yubnub.org/kernel/man?args=' + command,
+		false);
+	xhr.send();
+	
+	if (xhr.status == 200) {
+		var i = xhr.responseText.indexOf('<span class="muted">');
+		if (i != -1) {
+			var temp = xhr.responseText.substring(i + 20);
+			i = temp.indexOf('</span>');
+			if (i != -1) {
+				commandString = temp.substring(0, i);
+				//save commandString
+				localStorage[command] = commandString;
+				return commandString;
+			}
+		}
+	}
+	//what if it fails?
+}
+
 // receive query, initialize
 chrome.omnibox.onInputEntered.addListener(function(text) {
 	// parse the input
 	var text = text.trim();
 	var split = text.indexOf(' ');
-	if (split == -1) {	//if there's no space, bail
-		chrome.tabs.getSelected(null, function(tab) {
-			chrome.tabs.update(tab.id,
-				{url: chrome.extension.getURL('badCommand.html')});
-		});
+	var commandText, paramText;
+	if (split == -1) {	//if there's no space, make all parameters empty string
+		commandText = text;
+		paramText = '';
 	} else {
-		var commandText = text.substring(0, split);
-		var paramText = text.substring(split + 1);
-		
-		var commands = commandText.split('.');
-		var params = paramText.split('/');
-		
-		var isFirst = true;
-		
-		for (command in commands) {
-			// see if we have the command cached/overrided
-			var commandString = localStorage[commands[command]];
-			// if the command is blank, we open a blank tab
-			if (commands[command] == "") commandString = "";
-			
-			// if we don't have the command, go get it from yubnub
-			if (commandString == null) {
-				//do it synchronously for now. oh well
-				var xhr = new XMLHttpRequest();
-				xhr.open('GET',
-					'http://yubnub.org/kernel/man?args=' + commands[command],
-					false);
-				xhr.send();
-				
-				if (xhr.status == 200) {
-					var i = xhr.responseText.indexOf('<span class="muted">');
-					if (i != -1) {
-						var temp = xhr.responseText.substring(i + 20);
-						i = temp.indexOf('</span>');
-						if (i != -1) {
-							commandString = temp.substring(0, i);
-							//save commandString
-							localStorage[commands[command]] = commandString;
-						}
-					}
-				}
+		commandText = text.substring(0, split);
+		paramText = text.substring(split + 1);
+	}
+	
+	var commands = commandText.split('.');
+	var params = paramText.split('/');
+	
+	var commandStrings = [];
+	for (var command in commands) {			// convert commands into command strings
+		commandStrings = commandStrings.concat(resolveCommand(commands[command]));
+	}
+	
+	var isFirst = true;
+	
+	for (var csi in commandStrings) {
+		var commandString = commandStrings[csi];
+		var paramIndex = (commandString == null)
+			? -1
+			: commandString.indexOf('%s');
+		for (param in params) {
+			var toUrl = '';
+			if (commandString == "") {
+			//if there's no command, do the blank page
+				toUrl = 'about:blank';
+			} else if (commandString == null || paramIndex == -1) {
+			//if the command is unknown or the param is bad,
+			//say it's a bad command
+				toUrl = chrome.extension.getURL('badCommand.html');
+			} else {
+			//if we have a good command and param, make the command
+				toUrl = commandString.substring(0, paramIndex)
+					+ params[param]
+					+ commandString.substring(paramIndex + 2);
 			}
-			var paramIndex = (commandString == null)
-				? -1
-				: commandString.indexOf('%s');
-			for (param in params) {
-				var toUrl = '';
-				if (commandString == "") {
-				//if there's no command, do the blank page
-					toUrl = 'about:blank';
-				} else if (commandString == null || paramIndex == -1) {
-				//if the command is unknown or the param is bad,
-				//say it's a bad command
-					toUrl = chrome.extension.getURL('badCommand.html');
-				} else {
-				//if we have a good command and param, make the command
-					toUrl = commandString.substring(0, paramIndex)
-						+ params[param]
-						+ commandString.substring(paramIndex + 2);
-				}
-				if (isFirst) {
-					var firstToUrl = toUrl;
-					chrome.tabs.getSelected(null, function(tab) {
-						chrome.tabs.update(tab.id,
-							{url: firstToUrl});
-					});
-					isFirst = false;
-				} else {
-					chrome.tabs.create({url: toUrl, selected: false});
-				}
+			if (isFirst) {
+				var firstToUrl = toUrl;
+				chrome.tabs.getSelected(null, function(tab) {
+					chrome.tabs.update(tab.id,
+						{url: firstToUrl});
+				});
+				isFirst = false;
+			} else {
+				chrome.tabs.create({url: toUrl, selected: false});
 			}
 		}
 	}

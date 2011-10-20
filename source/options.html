@@ -41,16 +41,33 @@ function clear_overrides() {
 }
 
 </script>
+<style type="text/css">
+* {
+	font-family: Segoe UI, Segoe, Verdana;
+}
+
+input#newOverrideCommand {
+	width: 6em;
+}
+input#newOverrideUrl {
+	width: 40em;
+}
+
+</style>
+
+</head>
 
 <body onload="load_overrides()">
-<h3>Saved overrides/cached commands</h3>
-<div id="savedOverrides"></div>
-<div>
-<input id="newOverrideCommand" type="text" />
-<input id="newOverrideUrl" type="text" />
-<button onclick="save_overrides()">Save</button>
-</div>
-<div>
-<button onclick="clear_overrides()">Clear Overrides</button>
-</div>
+	<h3>Saved overrides/cached commands</h3>
+	<div id="savedOverrides"></div>
+	
+	<div>
+		<input id="newOverrideCommand" type="text" />
+		<input id="newOverrideUrl" type="text" />
+		<button onclick="save_overrides()">Save</button>
+	</div>
+	
+	<div>
+		<button onclick="clear_overrides()">Clear Overrides</button>
+	</div>
 </body>
